@@ -1,0 +1,36 @@
+Frontend:
+  impl: AttnPIMLoadStoreTrace
+  path: ./trace_gen/papi_attn.trace
+  clock_ratio: 1
+
+  Translation:
+    impl: NoTranslation
+    max_addr: 2147483648
+              
+
+MemorySystem:
+  impl: AttnPIMDRAM
+  clock_ratio: 1
+  DRAM:
+    impl: Attn-PIM
+    org:
+      preset: HBM3_8Gb_2R
+      channel: 16
+    timing:
+      preset: HBM3_5.2Gbps
+      #preset: HBM3_5.2Gbps_NPC
+
+  Controller:
+    impl: Attn-PIM
+    Scheduler:
+      impl: PIM
+    RefreshManager:
+      impl: AllBankHBM3
+      #impl: No
+    plugins:
+    - ControllerPlugin:
+        impl: HBM3TraceRecorder
+        path: ./log/papi_attn/cmd.log
+
+  AddrMapper:
+    impl: Attn-PIM
