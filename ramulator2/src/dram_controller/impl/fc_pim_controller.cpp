@@ -64,6 +64,15 @@ class FCPIMController final : public IDRAMController, public Implementation {
           pending.push_back(req);
           return true;
         }
+      }else if (req.type_id == Request::Type::PIM_MAC_AB) {//batch内不同请求的同一段向量在同一PU的计算，后续不再读DRAM，直接计算
+        auto compare_addr = [req](const Request& wreq) {
+          return wreq.addr == req.addr && wreq.type_id == req.type_id;
+        };
+        if (std::find_if(m_pim_buffer.begin(), m_pim_buffer.end(), compare_addr) != m_pim_buffer.end()) {
+          // The request will depart at the next cycle
+          req.depart = m_clk + 1;
+          return true;
+        }
       }
 
       // Else, enqueue them to corresponding buffer based on request type id
@@ -73,14 +82,9 @@ class FCPIMController final : public IDRAMController, public Implementation {
         case Request::Type::Read:           is_success = m_read_buffer.enqueue(req);  break;
         case Request::Type::Write:          is_success = m_write_buffer.enqueue(req); break;
         case Request::Type::PIM_MAC_AB:     is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MAC_SB:     is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MAC_PB:     is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_WR_GB:      is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MV_SB:      is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MV_GB:      is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_SFM:        is_success = m_pim_buffer.enqueue(req);   break;
+        case Request::Type::PIM_RF_GB:      is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_SET_MODEL:  is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_SET_HEAD:   is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_BARRIER:    is_success = m_pim_buffer.enqueue(req);   break;
         default: throw std::runtime_error("Invalid request type!");
       }
@@ -391,17 +395,10 @@ class FCPIMController final : public IDRAMController, public Implementation {
       else if (command == m_dram->m_commands("REFab")) return 0; // Row command
       else if (command == m_dram->m_commands("REFsb")) return 0; // Row command
       else if (command == m_dram->m_commands("ACTAB")) return 0; // Row command
-      else if (command == m_dram->m_commands("ACTSB")) return 0; // Row command
-      else if (command == m_dram->m_commands("ACTPB")) return 0; // Row command
       else if (command == m_dram->m_commands("MACAB")) return 1; // Col command
-      else if (command == m_dram->m_commands("MACSB")) return 1; // Col command
-      else if (command == m_dram->m_commands("MACPB")) return 1; // Col command
       else if (command == m_dram->m_commands("WRGB"))  return 1; // Col command
-      else if (command == m_dram->m_commands("MVSB"))  return 1; // Col command
-      else if (command == m_dram->m_commands("MVGB"))  return 1; // Col command
-      else if (command == m_dram->m_commands("SFM"))   return 1; // Col command
+      else if (command == m_dram->m_commands("RFGB"))  return 1; // Col command
       else if (command == m_dram->m_commands("SETM"))  return 1; // Col command
-      else if (command == m_dram->m_commands("SETH"))  return 1; // Col command
       else return -1;
     }
 

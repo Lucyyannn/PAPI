@@ -118,9 +118,9 @@ $ python3 main.py --system dgx-attacc --gpu A100a --ngpu 8 --model GPT-175B --li
 ```bash
 $ cd ramulator2
 $ cd trace_gen
-$ python gen_trace_attacc_bank.py
-$ python gen_trace_attacc_bg.py
-$ python gen_trace_attacc_buffer.py
+$ python3 gen_trace_attacc_bank.py
+$ python3 gen_trace_attacc_bg.py
+$ python3 gen_trace_attacc_buffer.py
 ```
 
 This produces `attacc_bank.trace`, `attacc_bg.trace`, and `attacc_buffer.trace` which are GPT-175B traces of attention layer in a single decoder for AttAcc\_bank, AttAcc\_BG, AttAcc\_buffer, respectively.

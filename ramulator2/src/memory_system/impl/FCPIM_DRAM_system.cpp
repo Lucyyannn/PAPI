@@ -19,14 +19,9 @@ class FCPIMDRAMSystem final : public IMemorySystem, public Implementation {
     int s_num_read_requests = 0;
     int s_num_write_requests = 0;
     int s_num_pim_mac_all_bank_requests = 0;
-    int s_num_pim_mac_same_bank_requests = 0;
-    int s_num_pim_mac_per_bank_requests = 0;
     int s_num_pim_write_to_gemv_buffer_requests = 0;
-    int s_num_pim_move_to_softmax_buffer_requests = 0;
-    int s_num_pim_move_to_gemv_buffer_requests = 0;
-    int s_num_pim_softmax_requests = 0;
+    int s_num_pim_read_from_gemv_buffer_requests = 0;
     int s_num_pim_set_model_requests = 0;
-    int s_num_pim_set_head_requests = 0;
     int s_num_other_requests = 0;
 
 
@@ -52,14 +47,9 @@ class FCPIMDRAMSystem final : public IMemorySystem, public Implementation {
       register_stat(s_num_read_requests).name("total_num_read_requests");
       register_stat(s_num_write_requests).name("total_num_write_requests");
       register_stat(s_num_pim_mac_all_bank_requests).name("total_num_pim_mac_all_bank_requests");
-      register_stat(s_num_pim_mac_same_bank_requests).name("total_num_pim_mac_same_bank_requests");
-      register_stat(s_num_pim_mac_per_bank_requests).name("total_num_pim_mac_per_bank_requests");
       register_stat(s_num_pim_write_to_gemv_buffer_requests).name("total_num_pim_write_to_gemv_buffer_requests");
-      register_stat(s_num_pim_move_to_softmax_buffer_requests).name("total_num_pim_move_to_softmax_buffer_requests");
-      register_stat(s_num_pim_move_to_gemv_buffer_requests).name("total_num_pim_move_to_gemv_buffer_requests");
-      register_stat(s_num_pim_softmax_requests).name("total_num_pim_softmax_requests");
+      register_stat(s_num_pim_read_from_gemv_buffer_requests).name("total_num_pim_read_from_gemv_buffer_requests");
       register_stat(s_num_pim_set_model_requests).name("total_num_pim_set_model_requests");
-      register_stat(s_num_pim_set_head_requests).name("total_num_pim_set_head_requests");
       register_stat(s_num_other_requests).name("total_num_other_requests");
     };
 
@@ -84,36 +74,16 @@ class FCPIMDRAMSystem final : public IMemorySystem, public Implementation {
             s_num_pim_mac_all_bank_requests++;
             break;
           }
-          case Request::Type::PIM_MAC_SB: {
-            s_num_pim_mac_same_bank_requests++;
-            break;
-          }
-          case Request::Type::PIM_MAC_PB: {
-            s_num_pim_mac_per_bank_requests++;
-            break;
-          }
           case Request::Type::PIM_WR_GB: {
             s_num_pim_write_to_gemv_buffer_requests++;
             break;
           }
-          case Request::Type::PIM_MV_SB: {
-            s_num_pim_move_to_softmax_buffer_requests++;
-            break;
-          }
-          case Request::Type::PIM_MV_GB: {
-            s_num_pim_move_to_gemv_buffer_requests++;
-            break;
-          }
-          case Request::Type::PIM_SFM: {
-            s_num_pim_softmax_requests++;
+          case Request::Type::PIM_RF_GB: {
+            s_num_pim_read_from_gemv_buffer_requests++;
             break;
           }
           case Request::Type::PIM_SET_MODEL: {
             s_num_pim_set_model_requests++;
-            break;
-          }
-          case Request::Type::PIM_SET_HEAD: {
-            s_num_pim_set_head_requests++;
             break;
           }
           case Request::Type::PIM_BARRIER: {

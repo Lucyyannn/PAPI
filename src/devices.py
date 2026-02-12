@@ -339,7 +339,7 @@ class PIM:
 
                 energy_per_access = self.energy_table['mem']
                 cell_energy = traffic[-1] * energy_per_access
-                dram_energy = cell_energy + io_energy
+                dram_energy = cell_energy + io_energy # DRAM读取energy， 数据传输energy
                 cal_energy = layer.get_flops() / 2 * self.energy_table['alu']
 
                 energies = [dram_energy, 0, 0, 0, cal_energy, 0]

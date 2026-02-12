@@ -23,15 +23,15 @@ struct Request {
 
       // PIM requests
       PIM_MAC_AB = 4,
-      PIM_MAC_SB = 5,
-      PIM_MAC_PB = 6,
+      PIM_MAC_AP = 5,
       PIM_WR_GB = 7,
-      PIM_MV_SB = 8,
-      PIM_MV_GB = 9,
-      PIM_SFM = 10,
-      PIM_SET_MODEL = 11,
-      PIM_SET_HEAD = 12,
-      PIM_BARRIER = 13
+      PIM_RF_GB = 8,
+      PIM_MV_SB = 9,
+      PIM_MV_GB = 10,
+      PIM_SFM = 11,
+      PIM_SET_MODEL = 12,
+      PIM_SET_HEAD = 13,
+      PIM_BARRIER = 14
     };
   };
 

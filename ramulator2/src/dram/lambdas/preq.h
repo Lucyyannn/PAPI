@@ -70,6 +70,46 @@ int RequireAllBanksRowOpen(typename T::Node* node, int cmd, int target_id, Clk_t
 };
 
 template <class T>
+int RequireAllPUBanksRowOpen(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
+  // For HBM3
+  if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {
+    typename T::Node* channel = node->m_parent_node->m_parent_node->m_parent_node->m_parent_node;
+    // PU0:bank0~1; PU1:bank2~3
+    bool even = node->m_node_id %2==0;
+
+    for (auto pc : channel->m_child_nodes) {
+      for (auto rank : pc->m_child_nodes) {
+        for (auto bg : rank->m_child_nodes) {
+          for (auto bank: bg->m_child_nodes) {
+            bool yes=((even && (bank->m_node_id %2==0))||(!even && (bank->m_node_id %2!=0)));
+            if(!yes){
+              continue;
+            }
+
+            switch (bank->m_state) {
+              case T::m_states["Closed"]: return T::m_commands["ACTAP"];
+              case T::m_states["Opened"]: {
+                if (bank->m_row_state.find(target_id) != bank->m_row_state.end()) {
+                  continue;
+                } else {
+                  return T::m_commands["PREAP"];
+                }
+                return cmd;
+              }
+              default: {
+                spdlog::error("[Preq::Bank] Invalid bank state for an RD/WR command!");
+                std::exit(-1);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return cmd;
+};
+
+template <class T>
 int RequirePIMSameBanksRowOpen(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
   // For HBM3
   if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {

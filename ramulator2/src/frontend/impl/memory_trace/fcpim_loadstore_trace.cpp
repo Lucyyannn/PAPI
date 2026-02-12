@@ -50,14 +50,9 @@ class FCPIMLoadStoreTrace : public IFrontEnd, public Implementation {
           case  0: request_sent = m_memory_system->send({t.addr, Request::Type::Read}); break;
           case  1: request_sent = m_memory_system->send({t.addr, Request::Type::Write}); break;
           case  4: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MAC_AB}); break;
-          case  5: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MAC_SB}); break;
-          case  6: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MAC_PB}); break;
           case  7: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_WR_GB}); break;
-          case  8: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MV_SB}); break;
-          case  9: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MV_GB}); break;
-          case 10: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_SFM}); break;
+          case  8: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_RF_GB}); break;
           case 11: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_SET_MODEL}); break;
-          case 12: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_SET_HEAD}); break;
           case 13: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_BARRIER}); break;
           default:;
         }
@@ -101,24 +96,14 @@ class FCPIMLoadStoreTrace : public IFrontEnd, public Implementation {
           req_type = 1;
         } else if (tokens[0] == "PIM_MAC_AB") {
           req_type = 4;
-        } else if (tokens[0] == "PIM_MAC_SB") {
-          req_type = 5;
-        } else if (tokens[0] == "PIM_MAC_PB") {
-          req_type = 6;
         } else if (tokens[0] == "PIM_WR_GB") {
           req_type = 7;
-        } else if (tokens[0] == "PIM_MV_SB") {
+        } else if (tokens[0] == "PIM_RF_GB") {
           req_type = 8;
-        } else if (tokens[0] == "PIM_MV_GB") {
-          req_type = 9;
-        } else if (tokens[0] == "PIM_SFM") {
-          req_type = 10;
         } else if (tokens[0] == "PIM_SET_MODEL") {
-          req_type = 11;
-        } else if (tokens[0] == "PIM_SET_HEAD") {
           req_type = 12;
         } else if (tokens[0] == "PIM_BARRIER") {
-          req_type = 13;
+          req_type = 14;
         } else {
           throw ConfigurationError("Trace {} format invalid!", file_path_str);
         }

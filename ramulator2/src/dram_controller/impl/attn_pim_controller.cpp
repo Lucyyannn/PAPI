@@ -72,9 +72,7 @@ class AttnPIMController final : public IDRAMController, public Implementation {
       switch (req.type_id) {
         case Request::Type::Read:           is_success = m_read_buffer.enqueue(req);  break;
         case Request::Type::Write:          is_success = m_write_buffer.enqueue(req); break;
-        case Request::Type::PIM_MAC_AB:     is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MAC_SB:     is_success = m_pim_buffer.enqueue(req);   break;
-        case Request::Type::PIM_MAC_PB:     is_success = m_pim_buffer.enqueue(req);   break;
+        case Request::Type::PIM_MAC_AP:     is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_WR_GB:      is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_MV_SB:      is_success = m_pim_buffer.enqueue(req);   break;
         case Request::Type::PIM_MV_GB:      is_success = m_pim_buffer.enqueue(req);   break;
@@ -390,12 +388,8 @@ class AttnPIMController final : public IDRAMController, public Implementation {
       else if (command == m_dram->m_commands("WR"))    return 1; // Col command
       else if (command == m_dram->m_commands("REFab")) return 0; // Row command
       else if (command == m_dram->m_commands("REFsb")) return 0; // Row command
-      else if (command == m_dram->m_commands("ACTAB")) return 0; // Row command
-      else if (command == m_dram->m_commands("ACTSB")) return 0; // Row command
-      else if (command == m_dram->m_commands("ACTPB")) return 0; // Row command
-      else if (command == m_dram->m_commands("MACAB")) return 1; // Col command
-      else if (command == m_dram->m_commands("MACSB")) return 1; // Col command
-      else if (command == m_dram->m_commands("MACPB")) return 1; // Col command
+      else if (command == m_dram->m_commands("ACTAP")) return 0; // Row command
+      else if (command == m_dram->m_commands("MACAP")) return 1; // Col command
       else if (command == m_dram->m_commands("WRGB"))  return 1; // Col command
       else if (command == m_dram->m_commands("MVSB"))  return 1; // Col command
       else if (command == m_dram->m_commands("MVGB"))  return 1; // Col command

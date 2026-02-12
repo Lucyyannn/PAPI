@@ -67,26 +67,25 @@ class FCPIM : public IDRAM, public Implementation {
       "RD",  "WR",
       "REFab", "REFsb",
       // PIM commands
-      "ACTAB", "ACTSB", "ACTPB",
-      "MACAB", "MACSB", "MACPB",
-      "WRGB", "MVSB", "MVGB", "SFM",
-      "SETM", "SETH", "BARRIER"
+      "ACTAB", 
+      "MACAB",
+      "WRGB", "RFGB", 
+      "SETM", "BARRIER"
     };
 
     inline static const ImplLUT m_command_scopes = LUT (
       m_commands, m_levels, {
-        // DRAM commadns
+        // DRAM commands
         {"ACT",   "row"},
         {"PRE",   "bank"},    {"PREA",  "channel"}, {"PRESB", "bank"}, {"PREPB", "bank"}, // PREA differs from HBM3's PREab in whether it is broadcasted to pseudo channels.
         {"RD",    "column"},  {"WR",     "column"},
         {"REFab", "channel"}, {"REFsb",  "bank"},
-        // PIM commadns
-        {"ACTAB", "row"},     {"ACTSB", "row"},     {"ACTPB", "row"},
-        {"MACAB",  "column"}, {"MACSB",  "column"}, {"MACPB", "column"}, // ACTPB and MACPB are broadcasted to pCHs in a channel
+        // PIM commands
+        {"ACTAB", "row"},   
+        {"MACAB",  "column"}, 
         {"WRGB",  "bank"},
-        {"MVSB",  "bank"},    {"MVGB", "bank"},
-        {"SFM",   "channel"},
-        {"SETM",  "bank"},    {"SETH", "channel"}
+        {"RFGB",  "bank"},   
+        {"SETM",  "bank"},   
       }
     );
 
@@ -105,17 +104,10 @@ class FCPIM : public IDRAM, public Implementation {
         {"REFsb", {false,  false,   false,   true }},
         // PIM commadns
         {"ACTAB", {true,   false,   false,   false}},
-        {"ACTSB", {true,   false,   false,   false}},
-        {"ACTPB", {true,   false,   false,   false}},
         {"MACAB", {false,  false,   true,    false}},
-        {"MACSB", {false,  false,   true,    false}},
-        {"MACPB", {false,  false,   true,    false}},
         {"WRGB",  {false,  false,   false,   false}},
-        {"MVSB",  {false,  false,   false,   false}},
-        {"MVGB",  {false,  false,   false,   false}},
-        {"SFM",   {false,  false,   false,   false}},
+        {"RFGB",  {false,  false,   false,   false}},
         {"SETM",  {false,  false,   false,   false}},
-        {"SETH",  {false,  false,   false,   false}}
       }
     );
 
@@ -123,19 +115,23 @@ class FCPIM : public IDRAM, public Implementation {
       // DRAM requests
       "read", "write", "all-bank-refresh", "per-bank-refresh",
       // PIM requests
-      "pim-mac-all-bank", "pim-mac-same-bank", "pim-mac-per-bank",
-      "pim-write-to-gemv-buffer", "pim-move-to-softmax-buffer", "pim-move-to-gemv-buffer",
-      "pim-softmax", "pim-set-model", "pim-set-head", "pim-barrier"
+      "pim-mac-all-bank", 
+      "pim-write-to-gemv-buffer", 
+      "pim-read-from-gemv-buffer", 
+      "pim-set-model", 
+      "pim-barrier"
     };
 
-    inline static const ImplLUT m_request_translations = LUT (
+    inline static const ImplLUT m_request_translations = LUT ( // request → final_command
       m_requests, m_commands, {
         // DRAM requests
         {"read", "RD"}, {"write", "WR"}, {"all-bank-refresh", "REFab"}, {"per-bank-refresh", "REFsb"},
         // PIM requests
-        {"pim-mac-all-bank", "MACAB"}, {"pim-mac-same-bank", "MACSB"}, {"pim-mac-per-bank", "MACPB"},
-        {"pim-write-to-gemv-buffer", "WRGB"}, {"pim-move-to-softmax-buffer", "MVSB"}, {"pim-move-to-gemv-buffer", "MVGB"},
-        {"pim-softmax", "SFM"}, {"pim-set-model", "SETM"}, {"pim-set-head", "SETH"}, {"pim-barrier", "BARRIER"}
+        {"pim-mac-all-bank", "MACAB"}, 
+        {"pim-write-to-gemv-buffer", "WRGB"}, 
+        {"pim-read-from-gemv-buffer", "RFGB"}, 
+        {"pim-set-model", "SETM"}, 
+        {"pim-barrier", "BARRIER"}
       }
     );
 
@@ -385,46 +381,46 @@ class FCPIM : public IDRAM, public Implementation {
 
           /*** PIM-MAC-Same-Bank ***/ 
           /// 2-cycle ACT command (for row commands)
-          {.level = "channel", .preceding = {"ACTSB"}, .following = {"ACTSB", "ACT", "PRE", "PREA", "PRESB", "REFab", "REFsb"}, .latency = 2},
+          //{.level = "channel", .preceding = {"ACTSB"}, .following = {"ACTSB", "ACT", "PRE", "PREA", "PRESB", "REFab", "REFsb"}, .latency = 2},
           /// Same-bank MAC timings. The timings of the bank in other BGs will be updated by action function
-          {.level = "channel", .preceding = {"MACSB"}, .following = {"MACSB"}, .latency = V("nCCDSB")},          
-          {.level = "bank", .preceding = {"ACTSB"}, .following = {"ACTSB"}, .latency = V("nRC")},  
-          {.level = "bank", .preceding = {"ACTSB"}, .following = {"MACSB"}, .latency = V("nRCDRD")},  
-          {.level = "bank", .preceding = {"ACTSB"}, .following = {"PRESB"}, .latency = V("nRAS")},  
-          {.level = "bank", .preceding = {"MACSB"},  .following = {"PRESB"}, .latency = V("nRTPL")},  
-          {.level = "bank", .preceding = {"PRESB"}, .following = {"ACTSB"}, .latency = V("nRP")},  
-          /// RAS <-> REF
-          {.level = "pseudochannel", .preceding = {"ACTSB"}, .following = {"REFab"}, .latency = V("nRC")},          
+          //{.level = "channel", .preceding = {"MACSB"}, .following = {"MACSB"}, .latency = V("nCCDSB")},          
+          //{.level = "bank", .preceding = {"ACTSB"}, .following = {"ACTSB"}, .latency = V("nRC")},  
+          //{.level = "bank", .preceding = {"ACTSB"}, .following = {"MACSB"}, .latency = V("nRCDRD")},  
+          //{.level = "bank", .preceding = {"ACTSB"}, .following = {"PRESB"}, .latency = V("nRAS")},  
+          //{.level = "bank", .preceding = {"MACSB"},  .following = {"PRESB"}, .latency = V("nRTPL")},  
+          //{.level = "bank", .preceding = {"PRESB"}, .following = {"ACTSB"}, .latency = V("nRP")},  
+          //// RAS <-> REF
+          //{.level = "pseudochannel", .preceding = {"ACTSB"}, .following = {"REFab"}, .latency = V("nRC")},          
           {.level = "pseudochannel", .preceding = {"PRESB"}, .following = {"REFab"}, .latency = V("nRP")},          
-          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACTSB"}, .latency = V("nRFC")},          
+          //{.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACTSB"}, .latency = V("nRFC")},          
 
 
           /*** PIM-MAC-Per-Bank ***/      // Broadcasting to pCHs in a channel
-          /// 2-cycle ACT command (for row commands)
-          {.level = "channel", .preceding = {"ACTPB"}, .following = {"ACTPB", "ACT", "PRE", "PREA", "PREPB", "REFab", "REFsb"}, .latency = 2},
-          /// Per-bank MAC timings. The timings of the bank in other pCHs will be updated by action function
-          {.level = "channel", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nBL")},
-          {.level = "rank", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nCCDS")},          
-          {.level = "bankgroup", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nCCDL")},          
-          {.level = "bank", .preceding = {"ACTPB"}, .following = {"ACTPB"}, .latency = V("nRC")},  
-          {.level = "bank", .preceding = {"ACTPB"}, .following = {"MACPB"}, .latency = V("nRCDRD")},  
-          {.level = "bank", .preceding = {"ACTPB"}, .following = {"PREPB"}, .latency = V("nRAS")},  
-          {.level = "bank", .preceding = {"MACPB"},  .following = {"PREPB"}, .latency = V("nRTPL")},  
-          {.level = "bank", .preceding = {"PREPB"}, .following = {"ACTPB"}, .latency = V("nRP")},  
-          /// RAS <-> REF
-          {.level = "pseudochannel", .preceding = {"ACTPB"}, .following = {"REFab"}, .latency = V("nRC")},          
-          {.level = "pseudochannel", .preceding = {"PREPB"}, .following = {"REFab"}, .latency = V("nRP")},          
-          {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACTPB"}, .latency = V("nRFC")},          
+          // // 2-cycle ACT command (for row commands)
+          // {.level = "channel", .preceding = {"ACTPB"}, .following = {"ACTPB", "ACT", "PRE", "PREA", "PREPB", "REFab", "REFsb"}, .latency = 2},
+          // // Per-bank MAC timings. The timings of the bank in other pCHs will be updated by action function
+          // {.level = "channel", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nBL")},
+          // {.level = "rank", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nCCDS")},          
+          // {.level = "bankgroup", .preceding = {"MACPB"}, .following = {"MACPB"}, .latency = V("nCCDL")},          
+          // {.level = "bank", .preceding = {"ACTPB"}, .following = {"ACTPB"}, .latency = V("nRC")},  
+          // {.level = "bank", .preceding = {"ACTPB"}, .following = {"MACPB"}, .latency = V("nRCDRD")},  
+          // {.level = "bank", .preceding = {"ACTPB"}, .following = {"PREPB"}, .latency = V("nRAS")},  
+          // {.level = "bank", .preceding = {"MACPB"},  .following = {"PREPB"}, .latency = V("nRTPL")},  
+          // {.level = "bank", .preceding = {"PREPB"}, .following = {"ACTPB"}, .latency = V("nRP")},  
+          // // RAS <-> REF
+          // {.level = "pseudochannel", .preceding = {"ACTPB"}, .following = {"REFab"}, .latency = V("nRC")},          
+          // {.level = "pseudochannel", .preceding = {"PREPB"}, .following = {"REFab"}, .latency = V("nRP")},          
+          // {.level = "pseudochannel", .preceding = {"REFab"}, .following = {"ACTPB"}, .latency = V("nRFC")},          
 
 
-          /*** Data Movement ***/                   // These can be executed simultaneously with MACAB/MACSB/MACPB because their data paths are different from that of MACAB/MACSB/MACPB.
+          /*** Data Movement ***/                   // These can be executed simultaneously with MACAB because their data paths are different from that of MACAB.
           // CAS <-> CAS (DQ <-> GEMV unit)
           /// Data bus occupancy
-          {.level = "pseudochannel", .preceding = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .following = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .latency = V("nBL")},
+          {.level = "pseudochannel", .preceding = {"WRGB", "RFGB", "RD", "WR"}, .following = {"WRGB", "RFGB", "RD", "WR"}, .latency = V("nBL")},
           /// Minimal latency to different bank group for commands regarding data path
-          {.level = "rank", .preceding = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .following = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .latency = V("nCCDS")},
+          {.level = "rank", .preceding = {"WRGB", "RFGB", "RD", "WR"}, .following = {"WRGB", "RFGB", "RD", "WR"}, .latency = V("nCCDS")},
           /// Minimal latency to same bank group for column commands regarding data path
-          {.level = "bankgroup", .preceding = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .following = {"WRGB", "MVSB", "MVGB", "SFM", "RD", "WR"}, .latency = V("nCCDL")},          
+          {.level = "bankgroup", .preceding = {"WRGB", "RFGB", "RD", "WR"}, .following = {"WRGB", "RFGB", "RD", "WR"}, .latency = V("nCCDL")},          
 
 
           /////////////////////////////////
@@ -516,20 +512,20 @@ class FCPIM : public IDRAM, public Implementation {
       // Same-Bank Actions.
       m_actions[m_levels["bank"]][m_commands["PRESB"]] = Lambdas::Action::Bank::PRESB<FCPIM>;
       // We call update_timing for the banks in other BGs here
-      m_actions[m_levels["bankgroup"]][m_commands["MACSB"]]  = Lambdas::Action::BankGroup::PIMSameBankActions<FCPIM>;
+      //m_actions[m_levels["bankgroup"]][m_commands["MACSB"]]  = Lambdas::Action::BankGroup::PIMSameBankActions<FCPIM>;
 
       // Per-Bank Actions. (pCH Broadcast)
-      m_actions[m_levels["bank"]][m_commands["PREPB"]] = Lambdas::Action::Bank::PREPB<FCPIM>;
+      //m_actions[m_levels["bank"]][m_commands["PREPB"]] = Lambdas::Action::Bank::PREPB<FCPIM>;
       // We call update_timing for the bank in other pCH here
-      m_actions[m_levels["bankgroup"]][m_commands["MACPB"]]  = Lambdas::Action::BankGroup::PIMPerBankActions<FCPIM>;
+      //m_actions[m_levels["bankgroup"]][m_commands["MACPB"]]  = Lambdas::Action::BankGroup::PIMPerBankActions<FCPIM>;
 
 
       // Bank Actions
       m_actions[m_levels["bank"]][m_commands["ACT"]] = Lambdas::Action::Bank::ACT<FCPIM>;
       m_actions[m_levels["bank"]][m_commands["PRE"]] = Lambdas::Action::Bank::PRE<FCPIM>;
       m_actions[m_levels["bank"]][m_commands["ACTAB"]] = Lambdas::Action::Bank::ACTAB<FCPIM>;
-      m_actions[m_levels["bank"]][m_commands["ACTSB"]]  = Lambdas::Action::Bank::ACTSB<FCPIM>;
-      m_actions[m_levels["bank"]][m_commands["ACTPB"]]  = Lambdas::Action::Bank::ACTPB<FCPIM>;
+      //m_actions[m_levels["bank"]][m_commands["ACTSB"]]  = Lambdas::Action::Bank::ACTSB<FCPIM>;
+      //m_actions[m_levels["bank"]][m_commands["ACTPB"]]  = Lambdas::Action::Bank::ACTPB<FCPIM>;
     };
 
     void set_preqs() {
@@ -543,8 +539,8 @@ class FCPIM : public IDRAM, public Implementation {
       m_preqs[m_levels["bank"]][m_commands["RD"]] = Lambdas::Preq::Bank::RequireRowOpen<FCPIM>;
       m_preqs[m_levels["bank"]][m_commands["WR"]] = Lambdas::Preq::Bank::RequireRowOpen<FCPIM>;
       m_preqs[m_levels["bank"]][m_commands["MACAB"]] = Lambdas::Preq::Bank::RequireAllBanksRowOpen<FCPIM>;
-      m_preqs[m_levels["bank"]][m_commands["MACSB"]]  = Lambdas::Preq::Bank::RequirePIMSameBanksRowOpen<FCPIM>;
-      m_preqs[m_levels["bank"]][m_commands["MACPB"]]  = Lambdas::Preq::Bank::RequirePIMPerBanksRowOpen<FCPIM>; // pCH Broadcast
+      //m_preqs[m_levels["bank"]][m_commands["MACSB"]]  = Lambdas::Preq::Bank::RequirePIMSameBanksRowOpen<FCPIM>;
+      //m_preqs[m_levels["bank"]][m_commands["MACPB"]]  = Lambdas::Preq::Bank::RequirePIMPerBanksRowOpen<FCPIM>; // pCH Broadcast
     };
 
     void set_rowhits() {
@@ -553,8 +549,8 @@ class FCPIM : public IDRAM, public Implementation {
       m_rowhits[m_levels["bank"]][m_commands["RD"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
       m_rowhits[m_levels["bank"]][m_commands["WR"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
       m_rowhits[m_levels["bank"]][m_commands["MACAB"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
-      m_rowhits[m_levels["bank"]][m_commands["MACSB"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
-      m_rowhits[m_levels["bank"]][m_commands["MACPB"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
+      //m_rowhits[m_levels["bank"]][m_commands["MACSB"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
+      //m_rowhits[m_levels["bank"]][m_commands["MACPB"]] = Lambdas::RowHit::Bank::RDWR<FCPIM>;
     }
 
 
@@ -564,8 +560,8 @@ class FCPIM : public IDRAM, public Implementation {
       m_rowopens[m_levels["bank"]][m_commands["RD"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
       m_rowopens[m_levels["bank"]][m_commands["WR"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
       m_rowopens[m_levels["bank"]][m_commands["MACAB"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
-      m_rowopens[m_levels["bank"]][m_commands["MACSB"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
-      m_rowopens[m_levels["bank"]][m_commands["MACPB"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
+      //m_rowopens[m_levels["bank"]][m_commands["MACSB"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
+      //m_rowopens[m_levels["bank"]][m_commands["MACPB"]] = Lambdas::RowOpen::Bank::RDWR<FCPIM>;
     }
 
 
