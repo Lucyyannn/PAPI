@@ -4,3 +4,4 @@ ramulator2/ext/
 ramulator2/*.so
 ramulator2/ramulator2
 src/__pycache__/
+papi_env/
