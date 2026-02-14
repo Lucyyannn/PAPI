@@ -51,7 +51,7 @@ class FCPIMController final : public IDRAMController, public Implementation {
     };
 
     bool send(Request& req) override {
-      req.final_command = m_dram->m_request_translations(req.type_id);
+      req.final_command = m_dram->m_request_translations(req.type_id);//req的type_id必须和它在requests表中声明顺序对应
 
       // Forward existing write requests to incoming read requests
       if (req.type_id == Request::Type::Read) {

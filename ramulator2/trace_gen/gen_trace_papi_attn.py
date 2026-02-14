@@ -20,7 +20,7 @@ n_bg = 4
 n_row = pow(2, 14)
 n_col = pow(2, 5)
 prefetch_size = 32 # byte
-n_mac = 16 # 因为FP16是16bit，2字节。prefetch_size=32 byte，一次访存取出16个数，所以一个Bank的一个PU要能计算这16个数
+n_mac = 16 # 因为FP16是16bit，2字节。prefetch_size=32 byte，一次访存取出16个数,因此一个PU需要一次进行16个运算
 
 
 # Granularity size
@@ -79,77 +79,68 @@ def Attention(L, key_addr, val_addr, itr, valid_channel = n_channel):
 
   valid_channels.append(valid_channel)
 
-  # 把 Q 向量写入 PIM 的 GEMV buffer（GB）  → 怎么就发生了广播呢？
+  # 把 Q 向量写入 PIM 的 GEMV buffer（GB）  
   def score_cpvec(addr_offset, L):
-    ## (pCH) C, C, R, R (MAC)
-    ## write input vector to gemv buffer
-    # number of partition = (R parallel units)
-
     # Data broadcasting for pch, rank, bg, and ba
-    for ba_idx in range(n_bank): # number of partitions
-      for col_idx in range(math.ceil(dhead / n_bank / n_mac)):
-        for lch in range(math.ceil(valid_channel)):
-          # GEMV buffer address, col granularity = 1   #此处addr_offset的意义？
-          addr = addr_offset + lch * HBM_GS['ch'] + ba_idx * HBM_GS['ba'] + col_idx #显式给出对每个channel的rank0,bg0的所有bank的PU写入的请求；其余靠广播
-          hex_addr = hex(addr)[2:]
-          cmd_score_wrgb[itr].append("PIM_WR_GB 0x{0:0>8}".format(hex_addr))
+    for ba_idx in range(0,n_bank,2): # number of partitions
+      for col_idx in range(math.ceil(dhead / (n_bank/2) / n_mac)):
+        if col_idx %2 ==0:
+          for lch in range(math.ceil(valid_channel)):
+            addr1 = addr_offset + lch * HBM_GS['ch'] + ba_idx * HBM_GS['ba'] + col_idx//2 #显式给出对每个channel的rank0&1,bg0的所有bank的PU写入的请求；其余靠广播
+            hex_addr1 = hex(addr1)[2:]
+            cmd_score_wrgb[itr].append("PIM_WR_GB 0x{0:0>8}".format(hex_addr1))
+        else:
+          for lch in range(math.ceil(valid_channel)):
+            addr2 = addr_offset + lch * HBM_GS['ch'] + (ba_idx+1) * HBM_GS['ba'] + col_idx//2 #显式给出对每个channel的rank0&1,bg0的所有bank的PU写入的请求；其余靠广播
+            hex_addr2 = hex(addr2)[2:]
+            cmd_score_wrgb[itr].append("PIM_WR_GB 0x{0:0>8}".format(hex_addr2))
 
   def score_mac(addr_offset, L):
-    ## (pCH) C, C, R, R (MAC)
-    # MAC and move output vector to softmax buffer
-    ## Vector (1 x k) x Matrix (k x n) multiplication
-    ## GEMV unit = adder tree mode
-    for n_idx in range(math.ceil(L / n_pch / n_rank / n_bg)):# 2048 / 16 = 128 ，每个bank/mac的L，row-length（个FP16数据元素）
+    # [1,dhead] * [dhead,L] = [1,L]
+    for n_idx in range(math.ceil(L / n_pch / n_rank / n_bg)):#逐列计算
       cmd_score_mac[itr].append([])
-      for k_idx in range(math.ceil(dhead / n_bank / n_mac)): # 128  / 64 = 2，每个mac的col-length
-        idx = k_idx + n_idx * math.ceil(dhead / n_bank / n_mac) #在bank中的总序号   
+      for k_idx in range(math.ceil(dhead / (n_bank/2) / n_mac / 2)): #对每列，16行为一组执行MAC
+        idx = k_idx + n_idx * math.ceil(dhead / (n_bank/2) / n_mac / 2) #在单个bank中的总序号   
 
-        # All bank command (legacy channel)
+        # All bank command 
         for lch in range(math.ceil(valid_channel)):# 只要是不同channel，就是并行执行的，这是controller并行导致
           addr = addr_offset + lch * HBM_GS['ch'] + idx * HBM_GS['col']
           hex_addr = hex(addr)[2:]
           cmd_score_mac[itr][-1].append("PIM_MAC_AB 0x{0:0>8}".format(hex_addr))
          ## parallelization 
-         # #不过由于power限制，能同时运行的GEMV数为18 per pCH。
+         # #不过由于power限制，能同时运行的GEMV unit数为18 per pCH。
          # 所以ACT/PRE的时间可以被其它没有同时执行的bank的read时间掩盖
 
-      ## MVSB command (Move to Softmax buffer) 每16列（即32byte*2*16，计算结果是长16个数的vector）打包一次
-      ## A output element is generated for every n_idx
+      ## MVSB command 每16列（计算结果是长16个数的vector，32B）打包一次
       if n_idx % 16 == 15 or n_idx == math.ceil(L / n_pch / n_rank / n_bg) - 1:
         cmd_score_mvsb[itr].append([])
         for bg_idx in range(n_bg):   
-          for rank in range(n_rank): #是不是缺pCH级
+          for rank in range(n_rank):
             for lch in range(math.ceil(valid_channel)):
               bank_addr = addr_offset + lch * HBM_GS['ch'] + rank * HBM_GS['rank'] + \
                           bg_idx * HBM_GS['bg'] #精确到bg是因为累加器是BG级的
               hex_addr = hex(bank_addr)[2:]
               cmd_score_mvsb[itr][-1].append("PIM_MV_SB 0x{0:0>8}".format(hex_addr))
 
-  ## (pCH) R, R, C, C (MAC)
-  def context_cpvec(addr_offset, L): #将SOFTMAX计算好的P移动到GEMV Buffer
-    ## write input vector to gemv buffer
-    ## number of partition = (BG and BA banks)
-
+  # 将SOFTMAX计算好的P移动到GEMV Buffer
+  def context_cpvec(addr_offset, L): 
     # Data broadcasting for bg and ba
     for rank in range(n_rank):
       for bg_idx in range(n_bg):
-        for col_idx in range(math.ceil(L / (n_pch * n_rank * n_bg * n_mac))):#每16个元素（32B）一起传输
+        for col_idx in range(math.ceil(L / (n_pch * n_rank * n_bg * n_mac))):#对P，每16个元素（32B）一起传输
           # number of columns of partition = L / (R parallel units)
             for lch in range(math.ceil(valid_channel)):
-              # GEMV buffer address, col granularity = 1
               addr = addr_offset + lch * HBM_GS['ch'] + rank * HBM_GS['rank'] + \
                      bg_idx * HBM_GS['bg'] + col_idx   #分发给每个bg的bank0，然后由bank0广播给bank1~3
               hex_addr = hex(addr)[2:]
               cmd_context_mvgb[itr].append("PIM_MV_GB 0x{0:0>8}".format(hex_addr))
 
   def context_mac(addr_offset, L):
-    # MAC and move output vector to softmax buffer
-    ## Vector (1xk) x Matrix (k x n ) multiplication
-    ## GEMV unit = mac mode
-    for n_idx in range(math.ceil(dhead / (n_bank * n_mac))):
+    # [1,L] * [L,dhead] = [1,dhead]
+    for n_idx in range(math.ceil(dhead / ((n_bank/2) * n_mac))):#每个PU要处理的列数
       cmd_context_mac[itr].append([])
-      for k_idx in range(math.ceil(L / (n_pch * n_rank * n_bg))): # 按列来
-        idx = k_idx + n_idx * math.ceil(L / (n_pch * n_rank * n_bg))
+      for k_idx in range(math.ceil(L / (n_pch * n_rank * n_bg)/2)): #bank0与bank1交错存储[1,16]的数据。相当于每个bank要存储的容量不变，但矩阵行数/2，列数*2
+        idx = k_idx + n_idx * math.ceil(L / (n_pch * n_rank * n_bg /2))
         for lch in range(math.ceil(valid_channel)):
           addr = addr_offset + lch * HBM_GS['ch'] + idx * HBM_GS['col'] 
           hex_addr = hex(addr)[2:]
@@ -157,7 +148,7 @@ def Attention(L, key_addr, val_addr, itr, valid_channel = n_channel):
 
       ## parallelization. Generate 16 elements per n_idx，
       cmd_context_mvsb[itr].append([])
-      for ba_idx in range(n_bank):
+      for ba_idx in range(0,n_bank,2):#从每个PU里读数据
         for rank in range(n_rank):
           for lch in range(math.ceil(valid_channel)):
             bank_addr = addr_offset + lch * HBM_GS['ch'] + rank * HBM_GS['rank'] + \
@@ -184,8 +175,8 @@ def Attention(L, key_addr, val_addr, itr, valid_channel = n_channel):
 
 # n_head and n_req = n_req per a HBM 
 def run_attention(dhead, n_head_per_hbm, L, trace_file_name):
-  partition_size = math.ceil(max_L * dhead / (n_pch * n_rank * n_bg * n_bank)) # manx_L * dhead是每个head的大小。partition_size是平均每个bank（1P1B，即每个PU）存放的一个head的大小
-  head_offset = partition_size
+  partition_size = math.ceil(max_L * dhead / (n_pch * n_rank * n_bg * (n_bank/2))) 
+  head_offset = math.ceil(partition_size / 2)
   v_offset = pow(2, 23) # bank的一半空间，上一半给K们，下一半给V们
   
 
@@ -194,9 +185,9 @@ def run_attention(dhead, n_head_per_hbm, L, trace_file_name):
   num_itr = math.ceil(n_head_per_hbm / (n_channel)) #每个channel的head数
   for itr in range(num_itr):#对一个channel的每个head
     remainder = 0
-    if (n_head_per_hbm / ((itr+1) * n_channel) < 1):
-      remainder = n_head_per_hbm % n_channel # 若不能整除，最后一个channel的head数
-    key_addr = itr * partition_size # 当前head在bank中的起始偏移
+    if (n_head_per_hbm / ((itr+1) * n_channel) < 1):#说明当前这一轮不需要16个channel全启动
+      remainder = n_head_per_hbm % n_channel # 还剩4个head，那么启动4个channel，每ch一个head
+    key_addr = itr * head_offset # 当前head在bank中的起始偏移
     val_addr = key_addr + v_offset 
 
     if remainder == 0:
@@ -225,8 +216,8 @@ def run_attention(dhead, n_head_per_hbm, L, trace_file_name):
       ## BARRIER
     total_cmd += barrier
 
-    length = math.ceil(L/n_pch/n_rank/n_bg/16)#16：一次访存取出16个FP16数据 ,length代表需要的访存次数
-    for j in range(0, length+1):#细粒度交错，平衡计算与带宽
+    length = math.ceil(L/n_pch/n_rank/n_bg/16)
+    for j in range(0, length+1):
       ## MAC (Head0)
       if not j == length:
         stride = 16
@@ -303,12 +294,12 @@ def run_attention(dhead, n_head_per_hbm, L, trace_file_name):
     # Head1: Context
     length = math.ceil(dhead/n_bank/n_mac)
     for j in range(0, length+1):
-      ## MAC (Head0) ？？？
+      ## MAC (Head1)
       if not j == length:
-        total_cmd += cmd_context_mac[i][j] # i+1 head1 ?
-      ## MVSB (Head0) ？？？
+        total_cmd += cmd_context_mac[i+1][j] 
+      ## MVSB (Head1)
       if not j == 0:
-        total_cmd += cmd_context_mvsb[i][j-1] # i+1 head1 ?
+        total_cmd += cmd_context_mvsb[i+1][j-1] 
       ## BARRIER
       if not j == length:
         total_cmd += barrier
@@ -384,7 +375,7 @@ def main():
                       help="maximum L, default= 4096")
   parser.add_argument("-db", "--dbyte", type=int, default=2, 
                       help="data type (B), default= 2")
-  parser.add_argument("-o", "--output", type=str, default="attacc_bank.trace", 
+  parser.add_argument("-o", "--output", type=str, default="papi_attn.trace", 
                       help="output path")
 
   args = parser.parse_args()
@@ -397,7 +388,7 @@ def main():
   data_size = args.dbyte
   n_mac = int(HBM_GS['col'] / data_size)
 
-  print("------   Make a trace of bank-level AttAcc   ------")
+  print("------   Make a trace of PAPI Attn-PIM   ------")
 
   args_dict = vars(args)
   print("All Arguments:")

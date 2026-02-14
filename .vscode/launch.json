@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Ramulator2 DEBUG",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceRoot}/ramulator2/build/ramulator2",
+      "args": [
+        "-f",
+        "${workspaceRoot}/ramulator2/papi_attn.yaml"
+      ],
+      "stopAtEntry": true,
+      "cwd": "${workspaceRoot}/ramulator2/build",
+      "environment": [],
+      "externalConsole": false,
+      "linux": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      },
+      "osx": { "MIMode": "lldb" },
+      "windows": {
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -47,35 +47,35 @@ namespace Bank {
       );
     }
   };
-  template <class T>
-  void ACTAP(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
-    // For HBM3
-    if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {
-      typename T::Node* channel = node->m_parent_node->m_parent_node->m_parent_node->m_parent_node;
-      // PU0:bank0~1; PU1:bank2~3
-      bool even = (node->m_node_id%2==0);
-      for (auto pch : channel->m_child_nodes) {
-        for (auto rank : pc->m_child_nodes) {
-          for (auto bg : rank->m_child_nodes) {
-            for (auto bank : bg->m_child_nodes) {
-              if (even && (bank->m_node_id %2==0)) {
-                bank->m_state = T::m_states["Opened"];
-                bank->m_row_state[target_id] = T::m_states["Opened"];
-              }else if(!even && (bank->m_node_id %2!=0)){
-                bank->m_state = T::m_states["Opened"];
-                bank->m_row_state[target_id] = T::m_states["Opened"];
-              }
-            }
-          }
-        }
-      }
-    } else {
-      static_assert(
-        false_v<T>,
-        "[Action::Bank] Unsupported organization. Please write your own ACTAB function."
-      );
-    }
-  };
+  // template <class T>
+  // void ACTAP(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
+  //   // For HBM3
+  //   if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {
+  //     typename T::Node* channel = node->m_parent_node->m_parent_node->m_parent_node->m_parent_node;
+  //     // PU0:bank0~1; PU1:bank2~3
+  //     bool even = (node->m_node_id%2==0);
+  //     for (auto pch : channel->m_child_nodes) {
+  //       for (auto rank : pc->m_child_nodes) {
+  //         for (auto bg : rank->m_child_nodes) {
+  //           for (auto bank : bg->m_child_nodes) {
+  //             if (even && (bank->m_node_id %2==0)) {
+  //               bank->m_state = T::m_states["Opened"];
+  //               bank->m_row_state[target_id] = T::m_states["Opened"];
+  //             }else if(!even && (bank->m_node_id %2!=0)){
+  //               bank->m_state = T::m_states["Opened"];
+  //               bank->m_row_state[target_id] = T::m_states["Opened"];
+  //             }
+  //           }
+  //         }
+  //       }
+  //     }
+  //   } else {
+  //     static_assert(
+  //       false_v<T>,
+  //       "[Action::Bank] Unsupported organization. Please write your own ACTAB function."
+  //     );
+  //   }
+  // };
 
   template <class T>
   void ACTSB(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
@@ -355,33 +355,33 @@ namespace Channel {
     }
   };
 
-  template <class T>
-  void PREAP(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
-    //for HBM3
-    if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {
-      bool even = (node->m_node_id%2==0);
-      for (auto pc : node->m_child_nodes) {
-        for (auto rank : pc->m_child_nodes) {
-          for (auto bg : rank->m_child_nodes) {
-            for (auto bank : bg->m_child_nodes) {
-              if (even && (bank->m_node_id %2==0)) {
-                bank->m_state = T::m_states["Closed"];
-                bank->m_row_state.clear();
-              }else if(!even && (bank->m_node_id %2!=0)){
-                bank->m_state = T::m_states["Closed"];
-                bank->m_row_state.clear();
-              }
-            }
-          }
-        }
-      }
-    } else {
-      static_assert(
-        false_v<T>, 
-        "[Action::Rank] Unsupported organization. Please write your own PREA function."
-      );
-    }
-  };
+  // template <class T>
+  // void PREAP(typename T::Node* node, int cmd, int target_id, Clk_t clk) {
+  //   //for HBM3
+  //   if constexpr (T::m_levels["bank"] - T::m_levels["channel"] == 4) {
+  //     bool even = (node->m_node_id%2==0);
+  //     for (auto pc : node->m_child_nodes) {
+  //       for (auto rank : pc->m_child_nodes) {
+  //         for (auto bg : rank->m_child_nodes) {
+  //           for (auto bank : bg->m_child_nodes) {
+  //             if (even && (bank->m_node_id %2==0)) {
+  //               bank->m_state = T::m_states["Closed"];
+  //               bank->m_row_state.clear();
+  //             }else if(!even && (bank->m_node_id %2!=0)){
+  //               bank->m_state = T::m_states["Closed"];
+  //               bank->m_row_state.clear();
+  //             }
+  //           }
+  //         }
+  //       }
+  //     }
+  //   } else {
+  //     static_assert(
+  //       false_v<T>, 
+  //       "[Action::Rank] Unsupported organization. Please write your own PREA function."
+  //     );
+  //   }
+  // };
 }      // namespace Channel
 
 }       // namespace Action

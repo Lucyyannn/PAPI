@@ -1,6 +1,6 @@
 Frontend:
   impl: AttnPIMLoadStoreTrace
-  path: ./trace_gen/papi_attn.trace
+  path: /home/simulator/PAPI_ASPLOS25/ramulator2/trace_gen/papi_attn.trace
   clock_ratio: 1
 
   Translation:

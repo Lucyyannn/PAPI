@@ -1,6 +1,6 @@
 Frontend:
   impl: FCPIMLoadStoreTrace
-  path: ./trace_gen/papi_fc.trace
+  path: /home/simulator/PAPI_ASPLOS25/ramulator2/trace_gen/papi_fc.trace
   clock_ratio: 1
 
   Translation:

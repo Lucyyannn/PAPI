@@ -10,7 +10,8 @@ target_sources(
   impl/dummy_controller.cpp
   impl/generic_dram_controller.cpp
   impl/hbm3_controller.cpp
-  impl/hbm3_pim_controller.cpp
+  impl/attn_pim_controller.cpp
+  impl/fc_pim_controller.cpp
   
   impl/scheduler/generic_scheduler.cpp
   impl/scheduler/pim_scheduler.cpp

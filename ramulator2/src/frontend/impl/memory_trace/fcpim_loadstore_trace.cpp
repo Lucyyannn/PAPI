@@ -50,10 +50,10 @@ class FCPIMLoadStoreTrace : public IFrontEnd, public Implementation {
           case  0: request_sent = m_memory_system->send({t.addr, Request::Type::Read}); break;
           case  1: request_sent = m_memory_system->send({t.addr, Request::Type::Write}); break;
           case  4: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_MAC_AB}); break;
-          case  7: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_WR_GB}); break;
-          case  8: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_RF_GB}); break;
-          case 11: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_SET_MODEL}); break;
-          case 13: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_BARRIER}); break;
+          case  5: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_WR_GB}); break;
+          case  6: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_RF_GB}); break;
+          case  10: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_SET_MODEL}); break;
+          case  12: request_sent = m_memory_system->send({t.addr, Request::Type::PIM_BARRIER}); break;
           default:;
         }
         if (request_sent) {
@@ -97,13 +97,13 @@ class FCPIMLoadStoreTrace : public IFrontEnd, public Implementation {
         } else if (tokens[0] == "PIM_MAC_AB") {
           req_type = 4;
         } else if (tokens[0] == "PIM_WR_GB") {
-          req_type = 7;
+          req_type = 5;
         } else if (tokens[0] == "PIM_RF_GB") {
-          req_type = 8;
+          req_type = 6;
         } else if (tokens[0] == "PIM_SET_MODEL") {
-          req_type = 12;
+          req_type = 10;
         } else if (tokens[0] == "PIM_BARRIER") {
-          req_type = 14;
+          req_type = 12;
         } else {
           throw ConfigurationError("Trace {} format invalid!", file_path_str);
         }

@@ -118,7 +118,9 @@ class FCPIM : public IDRAM, public Implementation {
       "pim-mac-all-bank", 
       "pim-write-to-gemv-buffer", 
       "pim-read-from-gemv-buffer", 
+      "pim-move-to-softmax-buffer", "pim-move-to-gemv-buffer","pim-softmax",//占位
       "pim-set-model", 
+      "pim-set-head",//占位
       "pim-barrier"
     };
 

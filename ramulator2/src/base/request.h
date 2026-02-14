@@ -20,18 +20,17 @@ struct Request {
       // DRAM requests
       Read = 0, 
       Write = 1,
-
+      
       // PIM requests
       PIM_MAC_AB = 4,
-      PIM_MAC_AP = 5,
-      PIM_WR_GB = 7,
-      PIM_RF_GB = 8,
-      PIM_MV_SB = 9,
-      PIM_MV_GB = 10,
-      PIM_SFM = 11,
-      PIM_SET_MODEL = 12,
-      PIM_SET_HEAD = 13,
-      PIM_BARRIER = 14
+      PIM_WR_GB = 5,
+      PIM_RF_GB = 6,
+      PIM_MV_SB = 7,
+      PIM_MV_GB = 8,
+      PIM_SFM = 9,
+      PIM_SET_MODEL = 10,
+      PIM_SET_HEAD = 11,
+      PIM_BARRIER = 12
     };
   };
 

@@ -7,7 +7,8 @@ target_sources(
   lambdas/preq.h  lambdas/rowhit.h  lambdas/rowopen.h 
 
   impl/HBM3.cpp
-  impl/HBM3-PIM.cpp
+  impl/ATTN-PIM.cpp
+  impl/FC-PIM.cpp
 )
 
 target_link_libraries(

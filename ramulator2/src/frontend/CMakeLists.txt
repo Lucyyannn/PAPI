@@ -5,7 +5,8 @@ target_sources(
   frontend.h
 
   impl/memory_trace/loadstore_trace.cpp
-  impl/memory_trace/pim_loadstore_trace.cpp
+  impl/memory_trace/attnpim_loadstore_trace.cpp
+  impl/memory_trace/fcpim_loadstore_trace.cpp
 )
 
 target_link_libraries(
