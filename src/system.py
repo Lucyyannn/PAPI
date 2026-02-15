@@ -8,13 +8,14 @@ from .config import *
 RAMPATH = "./ramulator2"
 RAMLOG = "./ramulator.out"
 
-OPB_PRINT = True
+LOG_PRINT = True
 
 
 class System:
 
     def __init__(self,
                  gpu_config,
+                 papi_alpha=3,
                  modelinfos=None):
         self.scaling_factor = SCALING_FACTOR
         self.hetero_name = DeviceType.NONE
@@ -28,8 +29,8 @@ class System:
             self.model = Transformer(modelinfos,
                                      tensor_parallel=self.GPU.num_xpu)
             self.model_set = 1
-
-        self.papi_alpha = 3 # 调度阈值 alpha，默认 3
+        self.speculation_length = 1
+        self.papi_alpha = papi_alpha # 调度阈值 alpha
 
     def set_model(self, modelinfos):
         self.model = Transformer(modelinfos, tensor_parallel=self.GPU.num_xpu)
@@ -49,26 +50,24 @@ class System:
 
     def simulate(self,
                  batch_size,
-                 lin,
-                 lout,
                  perfs=None,
                  pipe=False,
                  parallel_ff=False,
-                 power_constraint=False,
-                 num_reqs=0):
+                 power_constraint=True,
+                 num_reqs=0,
+                 lin=2048,
+                 lout=128):
 
-        def _opb_print(layer, stage_name, current_rlp, exec_time):
-            if OPB_PRINT and hasattr(layer, 'off_traffic') and layer.off_traffic != 0:
-                opb = layer.get_flops() / layer.off_traffic
-                # 转换为 TFLOPS
+        def _log_print(layer, stage_name, current_rlp, exec_time):
+            if LOG_PRINT :
                 tflops = layer.get_flops() / exec_time / 1e12 if exec_time > 0 else 0
                 
-                print("[{}] Step_BS: {}, Layer: {:<10}, OPB: {:.2f}, TFLOPS: {:.4f}, Bound: {:<8}".format(
-                    stage_name, current_rlp, layer.name, opb, tflops, layer.bound))
+                print("[{}] Step_BS: {}, Layer: {:<10},TFLOPS: {:.4f}, Bound: {:<8}".format(
+                    stage_name, current_rlp, layer.name, tflops, layer.bound))
        
         # 加载 Dolly 数据集信息
         try:
-            dolly_df = pd.read_csv("../dolly.csv")
+            dolly_df = pd.read_csv("dolly.csv")
             # 随机采样一个 Batch 的请求
             if len(dolly_df) >= batch_size:
                 workload = dolly_df.sample(n=batch_size).to_dict('records')
@@ -116,11 +115,10 @@ class System:
             total_time += exec_time
             for i in range(6): total_energy[i] += energy[i]
 
-             _opb_print(layer, 'SUM', batch_size, exec_time) 
+            _log_print(layer, 'SUM', batch_size, exec_time) 
 
         # 2.Gen阶段，动态调度
         # 模拟逐 token 生成，直到 batch 中所有请求完成
-        last_rlp = -1 
         for step in range(max_lout):
             # step1. 计算当前活跃的请求数 (RLP)
             active_requests = [job for job in workload if job['lout'] > step]
@@ -128,12 +126,12 @@ class System:
             if current_rlp == 0: break
 
             # step2. 计算 AI = RLP * TLP
-            current_ai = current_rlp * speculation_length
+            current_ai = current_rlp * self.speculation_length
             
             # step3. 比较，选择 FC 层的执行设备
-            if current_ai > papi_alpha:
+            fc_bound = "compute"
+            if current_ai > self.papi_alpha:
                 fc_device = self.GPU
-                fc_bound = "compute"
             else:
                 fc_device = self.fc_pim
                 fc_bound = "memory"
@@ -147,17 +145,18 @@ class System:
                 # 更新layer相关参数来反映当前的 batch_size、设备
                 if layer.type == LayerType.FC:
                     layer.m = current_rlp
-                    if fc_bound == "compute":#在GPU上多GPU并行
-
                 else:
                     layer.numOp = int((self.model.num_heads / self.GPU.num_xpu) * current_rlp)
 
                 # 算子分发
                 if layer.type in [LayerType.MATMUL, LayerType.SOFTMAX]:
                     # 1.Attention 永远在 Attn-PIM (1P2B)
+                    layer.bound = "memory"
+                    layer.n = lin + step # 这里的 n 随 step 增长
                     exec_time, energy = self.attn_pim.get_time_and_energy(layer)
-
+ 
                 elif layer.type == LayerType.FC:
+                    layer.bound = fc_bound
                     # 根据分布节点数重新计算每个节点上的形状 （仅适用于GPT3，不适用于Llama）
                     if layer.name in ['qkv', 'ff1']: 
                         layer.n = int(layer.n / current_tp)
@@ -190,11 +189,8 @@ class System:
                     gen_energies_detail[layer.type]['comp'] += sum(energy[1:5])
                     gen_energies_detail[layer.type]['comm'] += energy[5]
 
-                # 当rlp变化时打印日志
-                if current_rlp != last_rlp:
-                    _opb_print(layer, 'GEN', current_rlp, exec_time)
-            
-            last_rlp = current_rlp # 追踪rlp变化
+
+                _log_print(layer, 'GEN', current_rlp, exec_time)
                 
 
         # 3. 数据汇总与 Scaling
@@ -217,14 +213,19 @@ class System:
         ]
 
         final_energies = [e * self.model.ndec / 1000 / max_lout for e in final_energies]
-        throughput = batch_size / (g_perf['all'] * self.model.ndec)
+
+        perf_output = list(s_perf.values()) + list(g_perf.values())
+        perf_output = [t * self.model.ndec * 1000 for t in perf_output] # ms
+        gen_latency_ms = perf_output[len(s_perf)] # 对应 g_perf['all'] 的位置
+        throughput = batch_size / (gen_latency_ms / 1000) # tokens/s
+
         print(f"    [PAPI] Dolly Workload: Batch={batch_size}, Avg_Lin={avg_lin}, Max_Lout={max_lout}")
-        print(f"    Throughput: {throughput:.2f} tokens/s, Step Avg Latency: {g_perf['all']*1000:.2f}ms")
+        print(f"    Throughput: {throughput:.2f} tokens/s, Latency: {gen_latency_ms:.2f}ms")
 
         # 构造 Tag 和 Config 信息用于 CSV
         tag = [self.model.name, self.model.dtype.name, "GPU", 0, 0, 0] # 占位
         config = ["PAPI_DYNAMIC", self.GPU.num_xpu, pipe, parallel_ff, power_constraint, 
-                  self.model.gqa_size, avg_lin, max_lout, batch_size, 0, 0, 0]
+                  0, avg_lin, max_lout, batch_size, 0, 0, 0]
 
         if perfs is not None:
             perfs.append([tag, config, perf_output, final_energies])

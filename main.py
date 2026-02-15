@@ -41,21 +41,15 @@ def write_csv(logfile, perfs):
 
 def run(system: System,
         batch,
-        lin,
-        lout,
-        power_constraint=False,
+        power_constraint=True,
         pipe=0,
         parallel=False,
         output_file=None):
-    print("--- PAPI Heterogeneous Simulation | Batch {} Lin {} Lout {} ---".
-          format(batch, lin, lout))
     
     assert system.model_set, "Need to SetModel"
     perfs = []
     
     system.simulate(batch,
-                    lin,
-                    lout,
                     perfs=perfs,
                     pipe=pipe,
                     parallel_ff=parallel,
@@ -74,17 +68,11 @@ def main():
     parser.add_argument("--ngpu", type=int, default=8, help="number of GPUs")
     parser.add_argument("--gmemcap", type=int, default=60, help="per-GPU memory capacity (GB)")
 
-    ## PAPI 硬件约束
-    parser.add_argument("--powerlimit", action='store_true', help="Enable PIM power constraint")
-    parser.add_argument("--ffopt", action='store_true', help="Enable feedforward parallel optimization")
-    parser.add_argument("--pipeopt", action='store_true', help="Enable pipeline optimization")
-
     ## LLM 负载配置
-    parser.add_argument("--model", type=str, default='GPT-175B', help="model list: GPT-175B, LLAMA-65B, MT-530B, OPT-66B")
+    parser.add_argument("--model", type=str, default='GPT-175B', help="model list: GPT-175B")
     parser.add_argument("--word", type=int, default=2, help="Precision: 1(INT8), 2(FP16)")
-    parser.add_argument("--lin", type=int, default=2048, help="Prompt length")
-    parser.add_argument("--lout", type=int, default=128, help="Output tokens")
-    parser.add_argument("--batch", type=int, default=1, help="Batch size")
+    parser.add_argument("--batch", type=int, default=8, help="Batch size")
+    parser.add_argument("--alpha", type=int, default=3, help="threshold of the AI")
 
     args = parser.parse_args()
 
@@ -93,7 +81,7 @@ def main():
     
     # 打印运行信息
     print("Initializing PAPI System...")
-    print("Model: {}, Batch: {}, Lin: {}, Lout: {}".format(args.model, args.batch, args.lin, args.lout))
+    print("Model: {}, Batch: {}, Word: {}".format(args.model, args.batch, args.word))
 
     num_gpu = args.ngpu
     gmem_cap = args.gmemcap * 1024 * 1024 * 1024
@@ -106,27 +94,22 @@ def main():
     # 配置设备
     xpu_config = make_xpu_config(gpu_device, num_gpu=num_gpu, mem_cap=gmem_cap)
     
-    system = System(xpu_config['GPU'], modelinfos)
+    system = System(xpu_config['GPU'], args.alpha,modelinfos)
 
     fc_pim_config = make_pim_config(PIMType.FC, 
-                                    InterfaceType.NVLINK4, 
-                                    power_constraint=args.powerlimit)
+                                    InterfaceType.NVLINK4)
     
     attn_pim_config = make_pim_config(PIMType.ATTN, 
-                                      InterfaceType.PCIE5, 
-                                      power_constraint=args.powerlimit)
+                                      InterfaceType.PCIE5)
 
     system.set_papi_accelerators(modelinfos, fc_pim_config, attn_pim_config)
 
     # 执行仿真
     run(system,
         args.batch,
-        args.lin,
-        args.lout,
-        pipe=args.pipeopt,
-        parallel=args.ffopt,
-        output_file=output_path,
-        power_constraint=args.powerlimit)
+        pipe=0,
+        parallel=False,
+        output_file=output_path)
 
 if __name__ == "__main__":
     main()

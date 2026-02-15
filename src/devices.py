@@ -278,7 +278,7 @@ class PIM:
         self.softmax_peak_bandwidth = config['SOFTMAX_MEM_BW']
         self.max_interface_bandwidth = config['INTERFACE_BW']
         self.aggregate_memory_capacity = config[
-            'MEM_CAPACITY_PER_HBM'] * self.num_attacc * self.num_hbm
+            'MEM_CAPACITY_PER_HBM'] * self.num_papi * self.num_hbm
         self.energy_table = config['ENERGY_TABLE']
         self.io_energy_table = self.energy_table['io']
         self.power_constraint = config['POWER_CONSTRAINT']
@@ -301,7 +301,7 @@ class PIM:
         traffic = m * n * numOp * dbyte
         exec_time = traffic / interface_bw
 
-        energy = traffic * self.energy_table['comm'] * self.num_attacc
+        energy = traffic * self.energy_table['comm'] * self.num_papi
 
         return exec_time, [0, 0, 0, 0, 0, energy]
 
@@ -318,9 +318,9 @@ class PIM:
 
     def _get_energy(self, layer: Layer):
         off_data = layer.get_size()
-        e_off = sum(off_data) * self.energy_table['sram'] * self.num_attacc
+        e_off = sum(off_data) * self.energy_table['sram'] * self.num_papi
         e_flop = layer.get_flops(
-        ) / 2 * self.energy_table['alu'] * self.num_attacc
+        ) / 2 * self.energy_table['alu'] * self.num_papi
 
         return [e_off, 0, 0, 0, e_flop, 0]
 
@@ -332,8 +332,7 @@ class PIM:
             ## operational granularity = the attention layer
             if 'score' in layer.name:
                 m, n, k, numOp, dbyte = layer.get_infos()
-                time, traffic = self.ramulator.output(
-                    self.pim_type, layer, self.power_constraint)
+                time, traffic = self.ramulator.output(layer)
                 io_energy = 0
                 for i in range(len(self.io_energy_table)):
                     io_energy += traffic[i] * self.io_energy_table[i]
@@ -367,8 +366,7 @@ class PIM:
             return exec_time, energy
 
         elif layer.type == LayerType.FC:
-            time, traffic = self.ramulator.output(
-                self.pim_type, layer, self.power_constraint)
+            time, traffic = self.ramulator.output(layer)
             
             # traffic 结构: [si_io, tsv_io, giomux_io, bgmux_io, mem_acc]
             # io_energy_table 对应: [Interposer, TSV, GIO_Mux, BG_Mux]

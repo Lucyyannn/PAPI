@@ -165,7 +165,7 @@ MemorySystem:
             file_name = "papi_l{}_nattn{}_dhead{}_dbyte{}_pc{}".format(
                 l, num_ops_per_hbm, dhead, layer.dbyte, int(power_constraint))
             yaml_file = os.path.join(self.ramulator_dir, file_name + '.yaml')
-            self.make_yaml_file(yaml_file, file_name, power_constraint)
+            self.make_yaml_file(yaml_file, file_name) #默认有power_constraint
 
             result = self.run_ramulator(l, num_ops_per_hbm,
                                         layer.dbyte, yaml_file, file_name)
@@ -203,9 +203,9 @@ MemorySystem:
         else:
             assert 0, "Need to install ramulator"
 
-    def output(self, pim_type: PIMType, layer: Layer, power_constraint=True):
+    def output(self, layer: Layer, power_constraint=True):
         if self.df.empty:
-            self.run(pim_type, layer, power_constraint)
+            self.run(layer, power_constraint)
 
         num_ops_per_attacc = layer.numOp
         num_ops_per_hbm = math.ceil(num_ops_per_attacc / self.num_hbm)
@@ -220,10 +220,9 @@ MemorySystem:
         dbyte = layer.dbyte
         row = self.df[(self.df['L'] == l) & (self.df['nhead'] == num_ops_per_hbm) & \
                       (self.df['dbyte'] == dbyte) & (self.df['dhead'] == dhead) & \
-                      (self.df['power_constraint'] == power_constraint) &  \
-                      (self.df['pim_type'] == pim_type.name)]
+                      (self.df['power_constraint'] == power_constraint)]
         if row.empty:
-            return self.run(pim_type, layer, power_constraint)
+            return self.run(layer, power_constraint)
 
         else:
             cycle = int(row.iloc[0]['cycle'])
@@ -413,7 +412,7 @@ MemorySystem:
         else:
             assert 0, "Ramulator directory not found"
 
-    def output(self, pim_type: PIMType, layer: Layer, power_constraint=True):
+    def output(self, layer: Layer, power_constraint=True):
         # 尝试从缓存读取
         h_in = layer.k
         batch_size = layer.m

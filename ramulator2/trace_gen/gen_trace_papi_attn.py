@@ -388,16 +388,7 @@ def main():
   data_size = args.dbyte
   n_mac = int(HBM_GS['col'] / data_size)
 
-  print("------   Make a trace of PAPI Attn-PIM   ------")
-
-  args_dict = vars(args)
-  print("All Arguments:")
-  for key, value in args_dict.items():
-      print(f"     {key}: {value}")
-  print("---------------------------------------------------")
   run_attention(dhead, n_head_per_hbm, L, args.output)
-
-
 
 if __name__ == "__main__":
   main()
