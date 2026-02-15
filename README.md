@@ -4,7 +4,7 @@ PAPI is a Dynamic Parallelism system aimed to analyze the transformer-based gene
 
 In simulating the PAPI system, the simulator outputs the performance and energy usage of the xPU, while the behavior of PIMs is simulated using a properly modified [Ramulator 2.0](https://github.com/CMU-SAFARI/ramulator2).
 
-This work is adapted from the source code of [AttAcc](https://github.com/scale-snu/attacc_simulator.git).
+This work is adapted from the source code of [AttAcc](https://github.com/scale-snu/attacc_simulator.git). If you are interested in my reproduction approach, please refer to the document "PAPI复现思路.md".
 
 For more details of PAPI, please check the [paper](https://arxiv.org/abs/2502.15470) **PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System** published at [ASPLOS 2025](https://www.asplos-conference.org/asplos2025).
 

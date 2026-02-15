@@ -70,7 +70,11 @@ PAPI中的Attn-PIM整体沿用了AttAcc中HBM3-PIM的数据划分策略与内存
 - Trace生成脚本：
     - 修改了相应请求的生成逻辑。
 
-### （四）FC-PIM和Attn-PIM的仿真效果
-TODO
-
 ## 二、PAPI顶层模块调度的实现
+相比之下，PAPI顶层模块的实现在逻辑上并不复杂，主要包含两个方面：
+
+- System.simulate()函数的核心调度逻辑。
+    - 参照PAPI原文，使用Dolly数据集，获取其lin、lout数据；
+    - 根据论文中指出的动态调度判断方法，每计算一个token，重新统计RLP的值，并判断此时处于compute bound还是memory bound，并对之后的FC layer选择相应的设备。
+    - 这里，我设置TLP=1，alpha=3。
+- 其它类的一些琐碎工作，比如PIM Wrapper的编写、config参数设置等。需要注意的是，由于缺乏标准数据的参考，对于一些能耗相关的参数目前使用的是AI模拟的数据。
