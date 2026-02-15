@@ -270,7 +270,7 @@ class PIM:
 
     def __init__(self, config, scaling_factor, ramulator):
         self.name = DeviceType.PIM
-        self.num_attacc = config['NUM_ATTACC']
+        self.num_papi = config['NUM_PAPI']
         self.num_hbm = config['NUM_HBM']
         self.pim_type = config['PIM_TYPE']
         self.peak_memory_bandwidth = config['MEM_BW_PER_HBM'] * self.num_hbm
@@ -283,6 +283,7 @@ class PIM:
         self.io_energy_table = self.energy_table['io']
         self.power_constraint = config['POWER_CONSTRAINT']
         self.ramulator = ramulator
+        self.off_traffic = 0 #用于opb打印对齐
 
     def _get_traffic(self, layer: Layer):
         # return tuple of 4 elements (off-mem, L2, L1, reg)
@@ -343,7 +344,7 @@ class PIM:
                 cal_energy = layer.get_flops() / 2 * self.energy_table['alu']
 
                 energies = [dram_energy, 0, 0, 0, cal_energy, 0]
-                energies = [i * self.num_attacc for i in energies]
+                energies = [i * self.num_papi for i in energies]
 
                 return time, energies
             else:
@@ -364,6 +365,29 @@ class PIM:
             energy = self._get_energy(layer)
 
             return exec_time, energy
+
+        elif layer.type == LayerType.FC:
+            time, traffic = self.ramulator.output(
+                self.pim_type, layer, self.power_constraint)
+            
+            # traffic 结构: [si_io, tsv_io, giomux_io, bgmux_io, mem_acc]
+            # io_energy_table 对应: [Interposer, TSV, GIO_Mux, BG_Mux]
+            io_energy = 0
+            for i in range(len(self.io_energy_table)):
+                io_energy += traffic[i] * self.io_energy_table[i]
+
+            # 核心访存能量 (DRAM Cell 访问)
+            # 对于 FC-PIM，其 energy_table['mem'] 对应 4.4 pJ/B (4P1B 配置)
+            energy_per_access = self.energy_table['mem']
+            cell_energy = traffic[-1] * energy_per_access
+            dram_energy = cell_energy + io_energy 
+            cal_energy = layer.get_flops() / 2 * self.energy_table['alu']
+            energies = [dram_energy, 0, 0, 0, cal_energy, 0]
+            
+            energies = [i * self.num_papi for i in energies]
+
+            return time, energies
+
 
         else:
             assert 0, "PIM does not support this layer."

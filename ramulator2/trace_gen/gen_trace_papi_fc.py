@@ -51,8 +51,14 @@ def FC_Layer(h_in, h_out, batch_size, addr_offset):
     '''
     (batch * h_in) * (h_in * h_out) = (batch * h_out)
     '''
-    # channel级划分 → smaller 2D matrix ; [2,8]/[8,2]
-    n_channel_col = 8 if h_out > h_in else 2
+    # channel级划分 → smaller 2D matrix ; [2,8]/[8,2]/[4,4]
+    n_channel_col = 4
+    if h_out > h_in:
+        n_channel_col = 8
+    elif h_out < h_in:
+        n_channel_col = 2
+    else:
+        n_channel_col = 4
     n_channel_row = n_channel//n_channel_col
 
     # 列划分

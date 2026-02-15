@@ -1,18 +1,17 @@
-import pandas as pd
-import numpy as np
-import copy
 from .type import *
 from .model import *
 from .devices import *
 from .config import *
+import pandas as pd
+import numpy as np
+import copy
 RAMPATH = "./ramulator2"
 RAMLOG = "./ramulator.out"
 
-OPB_PRINT = True
+OPB_PRINT = False
 
 
 class System:
-
     def __init__(self,
                  gpu_config,
                  modelinfos=None):
@@ -29,22 +28,7 @@ class System:
                                      tensor_parallel=self.GPU.num_xpu)
             self.model_set = 1
 
-        self.papi_alpha = 3 # 调度阈值 alpha，默认 3
-
-    def set_model(self, modelinfos):
-        self.model = Transformer(modelinfos, tensor_parallel=self.GPU.num_xpu)
-        self.model_set = 1
-
-    def set_papi_accelerators(self, modelinfos, fc_config, attn_config):
-        self.hetero_name = DeviceType.PIM
-        
-        # 初始化 FC-PIM  
-        fc_ramulator = FCRamulator(modelinfos, "ramulator2", "ramulator_fc.out")
-        self.fc_pim = PIM(fc_config, self.scaling_factor, fc_ramulator)
-        
-        # 初始化 ATTN-PIM  
-        attn_ramulator = AttnRamulator(modelinfos, "ramulator2", "ramulator_attn.out")
-        self.attn_pim = PIM(attn_config, self.scaling_factor, attn_ramulator)
+        self.papi_alpha = 128 # 调度阈值 alpha，默认设为 128
 
 
     def simulate(self,
@@ -55,17 +39,9 @@ class System:
                  pipe=False,
                  parallel_ff=False,
                  power_constraint=False,
-                 num_reqs=0):
-
-        def _opb_print(layer, stage_name, current_rlp, exec_time):
-            if OPB_PRINT and hasattr(layer, 'off_traffic') and layer.off_traffic != 0:
-                opb = layer.get_flops() / layer.off_traffic
-                # 转换为 TFLOPS
-                tflops = layer.get_flops() / exec_time / 1e12 if exec_time > 0 else 0
-                
-                print("[{}] Step_BS: {}, Layer: {:<10}, OPB: {:.2f}, TFLOPS: {:.4f}, Bound: {:<8}".format(
-                    stage_name, current_rlp, layer.name, opb, tflops, layer.bound))
-       
+                 speculation_length=1,
+                 papi_alpha=3):
+        
         # 加载 Dolly 数据集信息
         try:
             dolly_df = pd.read_csv("../dolly.csv")
@@ -228,30 +204,3 @@ class System:
 
         if perfs is not None:
             perfs.append([tag, config, perf_output, final_energies])
-
-    # 未改，未用到
-    def get_required_mem_capacity(self, batch_size, lin, lout):
-        ndec = self.model.ndec
-        hdim = self.model.hdim
-        nhead = self.model.num_heads
-        ff_scale = self.model.ff_scale
-        w_byte = 2 if self.model.dtype in [DataType.W16A16, DataType.W16A8
-                                          ] else 1
-        a_byte = 2 if self.model.dtype in [DataType.W16A16, DataType.W8A16
-                                          ] else 1
-        l = lin + lout - 1
-
-        if 'LLAMA' in self.model.name:
-            weight_memory = ndec * hdim * (2 * hdim + 2 * (hdim) +
-                                           3 * ff_scale * hdim) * w_byte
-        else:
-            weight_memory = ndec * hdim * (2 * hdim + 2 * (hdim) +
-                                           2 * ff_scale * hdim) * w_byte
-
-        temp_memory = max((hdim + l * nhead) * a_byte, hdim * 2 * a_byte,
-                          l * nhead * 2 * a_byte,
-                          (ff_scale * hdim + hdim) * a_byte) + l * nhead
-        kv_memory = ndec * 2 * l * (hdim) * a_byte
-
-        return weight_memory, kv_memory * batch_size, temp_memory * batch_size
-

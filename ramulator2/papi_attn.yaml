@@ -18,7 +18,6 @@ MemorySystem:
       channel: 16
     timing:
       preset: HBM3_5.2Gbps
-      #preset: HBM3_5.2Gbps_NPC
 
   Controller:
     impl: Attn-PIM
@@ -26,7 +25,6 @@ MemorySystem:
       impl: PIM
     RefreshManager:
       impl: AllBankHBM3
-      #impl: No
     plugins:
     - ControllerPlugin:
         impl: HBM3TraceRecorder

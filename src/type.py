@@ -26,9 +26,8 @@ class DeviceType(Enum):
 
 
 class PIMType(Enum):
-    BA = 0
-    BG = 1
-    BUFFER = 2
+    FC = 0
+    ATTN = 1
 
 
 class InterfaceType(Enum):

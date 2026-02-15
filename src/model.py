@@ -166,11 +166,11 @@ class Transformer:
             Layer('sum', 'norm2', LayerType.NORM, False, self.dtype, batch * lin,
                   self.hdim, 1, 1))
         # Generation
-        for stage in range(1, lout, 1):
+        for stage in range(1, self.ndec, 1):# 改成一个token的所有层聚合
             decoder = []
             decoder.append(
                 Layer('gen', 'qkv', LayerType.FC, True, self.dtype, batch,
-                      3 * int(self.hdim / self.tp), self.hdim, 1))
+                      3 * self.hdim , self.hdim, 1))
             if (attn_on_hetero):
                 decoder.append(
                     Layer('gen', 'comm_x2g', LayerType.X2G, False, self.dtype,
@@ -194,7 +194,7 @@ class Transformer:
                           int(self.num_heads / self.tp) * batch))
             decoder.append(
                 Layer('gen', 'proj', LayerType.FC, True, self.dtype, batch,
-                      self.hdim, int(self.hdim / self.tp), 1))
+                      self.hdim, self.hdim , 1))
             decoder.append(
                 Layer('gen', 'comm_g2g', LayerType.G2G, False, self.dtype, batch,
                       self.hdim, 1, 1))
@@ -204,11 +204,11 @@ class Transformer:
             if 'LLAMA' in self.name:
                 decoder.append(
                     Layer('gen', 'ff1', LayerType.FC, True, self.dtype, batch,
-                          self.ff_scale * int(self.hdim / self.tp), self.hdim,
+                          self.ff_scale * self.hdim , self.hdim,
                           1))
                 decoder.append(
                     Layer('gen', 'ff2', LayerType.FC, True, self.dtype, batch,
-                          self.ff_scale * int(self.hdim / self.tp), self.hdim,
+                          self.ff_scale * self.hdim , self.hdim,
                           1))
                 decoder.append(
                     Layer('gen', 'glu', LayerType.ACT, False, self.dtype, batch,
@@ -216,11 +216,11 @@ class Transformer:
                 decoder.append(
                     Layer('gen', 'ff3', LayerType.FC, True, self.dtype,
                           batch, self.hdim,
-                          self.ff_scale * int(self.hdim / self.tp), 1))
+                          self.ff_scale * self.hdim , 1))
             else:
                 decoder.append(
                     Layer('gen', 'ff1', LayerType.FC, True, self.dtype, batch,
-                          self.ff_scale * int(self.hdim / self.tp), self.hdim,
+                          self.ff_scale * self.hdim , self.hdim,
                           1))
                 if 'OPT' in self.name:
                     decoder.append(
@@ -235,7 +235,7 @@ class Transformer:
                 decoder.append(
                     Layer('gen', 'ff2', LayerType.FC, True, self.dtype,
                           batch, self.hdim,
-                          self.ff_scale * int(self.hdim / self.tp), 1))
+                          self.ff_scale * self.hdim , 1))
 
             decoder.append(
                 Layer('gen', 'comm_g2g', LayerType.G2G, False, self.dtype, batch,

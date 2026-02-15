@@ -10,9 +10,8 @@ ENERGY_TABLE = {
     'GPU': {},
     'CPU': {},
     'PIM': {
-        PIMType.BA: {},
-        PIMType.BG: {},
-        PIMType.BUFFER: {}
+        PIMType.FC: {},
+        PIMType.ATTN: {},
     }
 }
 ENERGY_TABLE['GPU']['reg'] = 0.0675
@@ -44,29 +43,74 @@ ENERGY_TABLE['CPU']['comm'] = 0
 
 ## energy_table = [energy between DRAM cell and PE, energy between PE and buffer die
 
-ENERGY_TABLE['PIM'][PIMType.BA]['mem'] = (0.11 +
-                                          0.44) * 8  #, (1.01 + 1.23 + 0.5) * 8]
-ENERGY_TABLE['PIM'][PIMType.BG]['mem'] = (0.11 + 0.44 +
-                                          1.01) * 8  #, (1.23 + 0.5) * 8]
-ENERGY_TABLE['PIM'][PIMType.BUFFER]['mem'] = (0.11 + 0.44 + 1.01 + 1.23 +
-                                              0.5) * 8  #, 0]
+# ENERGY_TABLE['PIM'][PIMType.BA]['mem'] = (0.11 +
+#                                           0.44) * 8  #, (1.01 + 1.23 + 0.5) * 8]
+# ENERGY_TABLE['PIM'][PIMType.BG]['mem'] = (0.11 + 0.44 +
+#                                           1.01) * 8  #, (1.23 + 0.5) * 8]
+# ENERGY_TABLE['PIM'][PIMType.BUFFER]['mem'] = (0.11 + 0.44 + 1.01 + 1.23 +
+#                                               0.5) * 8  #, 0]
 
-ENERGY_TABLE['PIM'][PIMType.BA]['sram'] = 0.0034
-ENERGY_TABLE['PIM'][PIMType.BG]['sram'] = 0.0034
-ENERGY_TABLE['PIM'][PIMType.BUFFER]['sram'] = 0.0034
+# ENERGY_TABLE['PIM'][PIMType.BA]['sram'] = 0.0034
+# ENERGY_TABLE['PIM'][PIMType.BG]['sram'] = 0.0034
+# ENERGY_TABLE['PIM'][PIMType.BUFFER]['sram'] = 0.0034
 
-ENERGY_TABLE['PIM'][PIMType.BA]['alu'] = 0.32
-ENERGY_TABLE['PIM'][PIMType.BG]['alu'] = 0.32
-ENERGY_TABLE['PIM'][PIMType.BUFFER]['alu'] = 0.32
+# ENERGY_TABLE['PIM'][PIMType.BA]['alu'] = 0.32
+# ENERGY_TABLE['PIM'][PIMType.BG]['alu'] = 0.32
+# ENERGY_TABLE['PIM'][PIMType.BUFFER]['alu'] = 0.32
 
-ENERGY_TABLE['PIM'][PIMType.BA]['io'] = [0.3, 0.5, 1.23, 1.01]
-ENERGY_TABLE['PIM'][PIMType.BG]['io'] = [0.3, 0.5, 1.23, 1.01]
-ENERGY_TABLE['PIM'][PIMType.BUFFER]['io'] = [0.3, 0.5, 1.23, 1.01]
+# ENERGY_TABLE['PIM'][PIMType.BA]['io'] = [0.3, 0.5, 1.23, 1.01]
+# ENERGY_TABLE['PIM'][PIMType.BG]['io'] = [0.3, 0.5, 1.23, 1.01]
+# ENERGY_TABLE['PIM'][PIMType.BUFFER]['io'] = [0.3, 0.5, 1.23, 1.01]
 
-# https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10067395
-ENERGY_TABLE['PIM'][PIMType.BA]['comm'] = 10.4
-ENERGY_TABLE['PIM'][PIMType.BG]['comm'] = 10.4
-ENERGY_TABLE['PIM'][PIMType.BUFFER]['comm'] = 10.4
+# # https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=10067395
+# ENERGY_TABLE['PIM'][PIMType.BA]['comm'] = 10.4
+# ENERGY_TABLE['PIM'][PIMType.BG]['comm'] = 10.4
+# ENERGY_TABLE['PIM'][PIMType.BUFFER]['comm'] = 10.4
+
+
+# --- 访存能耗 (mem) 推算 ---
+# 计算公式: (ACT/PRE + RD/WRT) * 8 bits/byte
+# 对于 Bank-level PIM，数据不经过 BG Mux 和 GIO Mux，因此路径最短。
+
+# FC-PIM (4P1B): PU 直接集成在 Bank 的列译码器附近，访存路径最短
+# Energy = (0.11 + 0.44) * 8 = 4.4 pJ/B
+ENERGY_TABLE['PIM'][PIMType.FC]['mem'] = (0.11 + 0.44) * 8
+
+# ATTN-PIM (1P2B): 1个 PU 服务 2个 Bank，数据可能需要跨越极短的 Bank 间连线
+# 模拟增加一个极小的布线损耗 (假设为 0.05 pJ/b)
+# Energy = (0.11 + 0.44 + 0.05) * 8 = 4.8 pJ/B
+ENERGY_TABLE['PIM'][PIMType.ATTN]['mem'] = (0.11 + 0.44 + 0.05) * 8
+
+
+# --- SRAM/Buffer 能耗 ---
+# 无论 4P1B 还是 1P2B，PU 内部的输入向量缓存 (GEMV Buffer) 能耗一致
+ENERGY_TABLE['PIM'][PIMType.FC]['sram'] = 0.0034
+ENERGY_TABLE['PIM'][PIMType.ATTN]['sram'] = 0.0034
+
+
+# --- 计算能耗 (alu) ---
+# FC-PIM 专门优化了计算吞吐（4个PU），但单个 MAC 操作的 bit 级能耗保持稳定
+ENERGY_TABLE['PIM'][PIMType.FC]['alu'] = 0.32
+ENERGY_TABLE['PIM'][PIMType.ATTN]['alu'] = 0.32
+
+
+# --- 内部 IO 路径能耗 (io) ---
+# 列表定义: [Interposer, TSV, GIO_Mux, BG_Mux]
+# 当计算结果需要从 PIM 传回 Buffer Die 或外界时，需要经过这些路径
+# 两者物理结构一致，均使用相同的 HBM3 内部连线参数
+ENERGY_TABLE['PIM'][PIMType.FC]['io'] = [0.3, 0.5, 1.23, 1.01]
+ENERGY_TABLE['PIM'][PIMType.ATTN]['io'] = [0.3, 0.5, 1.23, 1.01]
+
+
+# --- 通信能耗 (comm) ---
+# PAPI 论文指出，FC-PIM 涉及更多的权重/激活在 GPU 与 HBM 间的频繁交换
+# ATTN-PIM 虽然解耦，但 Attention 的 KV Cache 传输较少（主要是结果传输）
+# 保持 AttAcc 的基准值，或根据异构性略作区分
+
+# FC-PIM 位于高带宽路径上，参考原本的 comm 消耗
+ENERGY_TABLE['PIM'][PIMType.FC]['comm'] = 10.4 
+# ATTN-PIM 走解耦路径，可能存在额外的接口开销 (模拟增加 10%)
+ENERGY_TABLE['PIM'][PIMType.ATTN]['comm'] = 11.44
 
 
 def make_xpu_config(gpu_type: GPUType,
@@ -149,17 +193,19 @@ def make_xpu_config(gpu_type: GPUType,
     return config
 
 
-# Rank x BG x BA / 2 (tCCD)
 BW_SCALE = {
-    False: {
-        PIMType.BA: 2 * 4 * 4 / 2,
-        PIMType.BG: 2 * 4,
-        PIMType.BUFFER: 1
+    False: {#无功耗限制
+        # FC-PIM: 2 Rank * 3 BG * 4 BA = 24
+        PIMType.FC: 2 * 3 * 4, 
+        # ATTN-PIM: 2 Rank * 4 BG * 4 BA / 2 (共享) = 16
+        PIMType.ATTN: (2 * 4 * 4) / 2, 
     },
-    True: {
-        PIMType.BA: 9,
-        PIMType.BG: 3,
-        PIMType.BUFFER: 1
+    True: {#有功耗限制
+        # 参考 AttAcc 的 BA 类型从 16 下降到 9 的比例 (约 0.56)
+        # FC-PIM: 24 * 0.56 ≈ 13
+        PIMType.FC: 13,
+        # ATTN-PIM: 16 * 0.56 ≈ 9
+        PIMType.ATTN: 9
     }
 }
 
@@ -167,7 +213,7 @@ BW_SCALE = {
 def make_pim_config(pim_type: PIMType,
                     interface_type: InterfaceType,
                     opb=1,
-                    num_attacc=8,
+                    num_papi=1,
                     num_hbm=5,
                     bw_scale=None,
                     power_constraint=False):
@@ -178,11 +224,10 @@ def make_pim_config(pim_type: PIMType,
 
     internal_bandwidth_scale =  BW_SCALE[power_constraint][pim_type] \
                                 if bw_scale is None else bw_scale
-    config["NUM_ATTACC"] = num_attacc
+    config["NUM_PAPI"] = num_papi
     config["NUM_HBM"] = num_hbm
     config["MEM_CAPACITY_PER_HBM"] = 16 * 1024 * 1024 * 1024
-    config[
-        "MEM_BW_PER_HBM"] = 670.4 * 1000 * 1000 * 1000 * internal_bandwidth_scale
+    config["MEM_BW_PER_HBM"] = 670.4 * 1000 * 1000 * 1000 * internal_bandwidth_scale
     config["FLOPS_PER_HBM"] = config["MEM_BW_PER_HBM"] * opb
     config["SOFTMAX_MEM_BW"] = 670.4 * 1000 * 1000 * 1000 * num_hbm
     config["SOFTMAX_FLOPS"] = config["SOFTMAX_MEM_BW"]
